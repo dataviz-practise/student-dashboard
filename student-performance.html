@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Student Performance Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system;
+  background: #f4f6fa;
+  color: #1f2937;
+}
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+h1 { font-size: 22px; margin: 0; }
+.subtitle { font-size: 13px; color: #6b7280; }
+
+.filters, .tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.filter {
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.05);
+  font-size: 13px;
+}
+select {
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+.tab {
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: #e5e7eb;
+  cursor: pointer;
+}
+.tab.active {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.05);
+}
+.label { font-size: 12px; color: #6b7280; }
+.value { font-size: 26px; font-weight: 600; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.panel {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.05);
+}
+
+.story {
+  margin-top: 14px;
+  font-size: 14px;
+  color: #4b5563;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<header>
+  <div>
+    <h1>Student Performance Dashboard</h1>
+    <div class="subtitle">Interactive • Story-Driven • Data-First</div>
+  </div>
+  <div class="subtitle">Source: Kaggle</div>
+</header>
+
+<!-- Filters -->
+<div class="filters">
+  <div class="filter">Gender:
+    <select id="genderFilter">
+      <option value="ALL">All</option>
+      <option value="male">Male</option>
+      <option value="female">Female</option>
+    </select>
+  </div>
+  <div class="filter">Lunch:
+    <select id="lunchFilter">
+      <option value="ALL">All</option>
+      <option value="standard">Standard</option>
+      <option value="free/reduced">Free / Reduced</option>
+    </select>
+  </div>
+  <div class="filter">Test Prep:
+    <select id="prepFilter">
+      <option value="ALL">All</option>
+      <option value="completed">Completed</option>
+      <option value="none">None</option>
+    </select>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview')">Overview</div>
+  <div class="tab" onclick="switchTab('gaps')">Gaps & Drivers</div>
+</div>
+
+<!-- KPIs -->
+<section class="cards">
+  <div class="card"><div class="label">Avg Math</div><div class="value" id="kpiMath">–</div></div>
+  <div class="card"><div class="label">Avg Reading</div><div class="value" id="kpiReading">–</div></div>
+  <div class="card"><div class="label">Avg Writing</div><div class="value" id="kpiWriting">–</div></div>
+</section>
+
+<!-- Charts -->
+<section class="grid">
+  <div class="panel"><canvas id="avgChart"></canvas></div>
+  <div class="panel"><canvas id="gapChart"></canvas></div>
+</section>
+
+<div class="story" id="storyText"></div>
+
+</div>
+
+<script>
+let raw = [];
+let currentTab = 'overview';
+
+const avgChart = new Chart(avgChartCanvas = document.getElementById('avgChart'), {
+  type: 'bar',
+  data: { labels: ['Math','Reading','Writing'], datasets:[{ data:[0,0,0], backgroundColor:'#6366f1' }] },
+  options:{ plugins:{ legend:{ display:false }}, scales:{ y:{ beginAtZero:true, max:100 }}}
+});
+
+const gapChart = new Chart(gapChartCanvas = document.getElementById('gapChart'), {
+  type: 'bar',
+  data: { labels:['Math','Reading','Writing'], datasets:[] },
+  options:{ scales:{ y:{ beginAtZero:true, max:100 }}}
+});
+
+Papa.parse('StudentsPerformance.csv', {
+  download: true,
+  header: true,
+  complete: results => {
+    raw = results.data.filter(d => d['math score']);
+    update();
+  }
+});
+
+document.querySelectorAll('select').forEach(s => s.onchange = update);
+
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  event.target.classList.add('active');
+  update();
+}
+
+function update(){
+  const g = genderFilter.value;
+  const l = lunchFilter.value;
+  const p = prepFilter.value;
+
+  const data = raw.filter(d =>
+    (g==='ALL'||d.gender===g) &&
+    (l==='ALL'||d.lunch===l) &&
+    (p==='ALL'||d['test preparation course']===p)
+  );
+
+  const avg = k => data.reduce((a,b)=>a+Number(b[k]),0)/data.length || 0;
+
+  kpiMath.innerText = avg('math score').toFixed(1);
+  kpiReading.innerText = avg('reading score').toFixed(1);
+  kpiWriting.innerText = avg('writing score').toFixed(1);
+
+  avgChart.data.datasets[0].data = [
+    avg('math score'), avg('reading score'), avg('writing score')
+  ];
+  avgChart.update();
+
+  if(currentTab==='gaps'){
+    const male = data.filter(d=>d.gender==='male');
+    const female = data.filter(d=>d.gender==='female');
+
+    gapChart.data.datasets = [
+      { label:'Male', backgroundColor:'#60a5fa',
+        data:['math score','reading score','writing score']
+        .map(k=>male.reduce((a,b)=>a+Number(b[k]),0)/male.length||0)
+      },
+      { label:'Female', backgroundColor:'#f472b6',
+        data:['math score','reading score','writing score']
+        .map(k=>female.reduce((a,b)=>a+Number(b[k]),0)/female.length||0)
+      }
+    ];
+    storyText.innerText =
+      'Gender-based gaps are visible, especially in reading and writing performance.';
+  } else {
+    gapChart.data.datasets = [];
+    storyText.innerText =
+      'This overview summarizes average student performance across subjects.';
+  }
+  gapChart.update();
+}
+</script>
+
+</body>
+</html>
